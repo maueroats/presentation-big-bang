@@ -25,3 +25,12 @@ triggering the visual responses.
 An example frame from a presentation big-bang:
 
 ![Magnified big-bang with annotations](example.png)
+
+The example code shows:
+
+* `#:magnification` (actually the image above is not 3x)
+* `#:reset-tick`: Play a loop by resetting to the initial model every
+  30 ticks.
+* `#:reset-key`: Hitting the "r" key also resets to the initial
+  model. This can be useful for demonstrating several different lines
+  of play.
