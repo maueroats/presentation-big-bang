@@ -1,5 +1,11 @@
 #lang racket
 
+#|
+WIP:
+Add other expressions to make this work with universe.
+Probably some metaprogramming would be smart instead of writing all the rest by hand.
+|#
+
 (require 2htdp/image)
 (require 2htdp/universe)
 (require racket/format)
@@ -32,6 +38,12 @@
   m)
 (define (dummy-tick-h m)
   m)
+(define (dummy-receive-h m msg)
+  m)
+(define (dummy-check-with-f m)
+  #true)
+(define (dummy-stop-when-f m)
+  #false)
 
 (struct meta (x y event ticks) #:transparent)
 (define INITIAL-METADATA (meta 0 0 "" 0))
@@ -64,6 +76,14 @@
                                                     (mytext (meta-event md))
                                                     (mytext (make-string shown-ticks #\.))))
                                 img)))
+#|
+Thinking about a better way to do this...
+
+(define actual-mouse-h (wrap-base mouse-h (model x y event)))
+->
+(define (actual-mouse-h model x y event)
+  ())
+|#
 
 (define (presentation-big-bang* initial-model
                                 #:initial-metadata
@@ -73,10 +93,16 @@
                                 #:tick [tick-h dummy-tick-h]
                                 #:key [key-h dummy-key-h]
                                 #:mouse [mouse-h dummy-mouse-h]
+                                #:receive [receive-h dummy-receive-h]
+                                #:check-with [check-with-f dummy-check-with-f]
                                 #:magnification [mag 1]
                                 #:delay [delay 0.2]
                                 #:reset-tick [reset-tick RESET-TICK]
-                                #:reset-key [reset-key RESET-KEY])
+                                #:reset-key [reset-key RESET-KEY]
+                                #:stop-when [stop-when-f dummy-stop-when-f]
+                                #:last-scene [last-scene-f #f]
+                                #:register [register-host #f]
+                                #:name [the-name "Presention World"])
   (struct full (model meta) #:transparent)
   (define INITIAL (full initial-model initial-metadata))
 
@@ -109,11 +135,46 @@
                            x* y*
                            event)))
 
-  (big-bang (full initial-model initial-metadata)
-    (to-draw actual-draw-h)
-    (on-tick actual-tick-h delay)
-    (on-key actual-key-h)
-    (on-mouse actual-mouse-h)))
+  (define (actual-receive-h fm msg)
+    (full (receive-h (full-model fm)
+                     msg)
+          (full-meta fm)))
+
+  (define (actual-check-with-f fm)
+    (and (full? fm)
+         (check-with-f (full-model fm))))
+
+  (define (actual-stop-when-f fm)
+    (stop-when-f (full-model fm)))
+
+  (define (actual-last-scene-f fm)
+    (if last-scene-f
+        (meta-draw-h (full-meta fm)
+                     (last-scene-f (full-model fm)))
+        (actual-draw-h fm)))
+
+  (if register-host
+      (big-bang (full initial-model initial-metadata)
+                (name the-name)
+                (register register-host)
+                (to-draw actual-draw-h)
+                (on-tick actual-tick-h delay)
+                (on-key actual-key-h)
+                (on-mouse actual-mouse-h)
+                (on-receive actual-receive-h)
+                (check-with actual-check-with-f)
+                (stop-when actual-stop-when-f actual-last-scene-f))
+      ; else ... yuck
+      (big-bang (full initial-model initial-metadata)
+                (name the-name)
+                (to-draw actual-draw-h)
+                (on-tick actual-tick-h delay)
+                (on-key actual-key-h)
+                (on-mouse actual-mouse-h)
+                (on-receive actual-receive-h)
+                (check-with actual-check-with-f)
+                (stop-when actual-stop-when-f actual-last-scene-f)
+                )))
 
 
 ;; ========================================================================
@@ -122,7 +183,7 @@
 
 (module+ main
   (struct m (x y r t) #:transparent)
-                                
+  
   (define (dh w)
     (place-image (circle (m-r w) "solid" (make-color (+ 100 (m-t w)) 0 0))
                  (m-x w) (m-y w)
@@ -133,6 +194,10 @@
            (struct-copy m model [r (+ 10 (m-r model))])]
           [(key=? k "down")
            (struct-copy m model [r (+ -10 (m-r model))])]
+          [(key=? k "e")
+           'bad-result] ;; for testing the check-with function
+          [(key=? k "q")
+           (struct-copy m model [t -100])] 
           [else model]))
 
   (define (mh model x y event)
@@ -141,18 +206,30 @@
   (define (th model)
     (struct-copy m model [t (modulo (+ 10 (m-t model)) 150)]))
 
+  (define (cw? model)
+    (and (m? model)
+         (number? (m-x model))
+         (number? (m-y model))
+         (number? (m-r model))
+         (number? (m-t model))))
+
+  (define (should-stop? model)
+    (= -100 (m-t model)))
+
   (define (run)
-   (presentation-big-bang* (m 150 90 35 100)
+    (presentation-big-bang* (m 150 90 35 100)
                             #:initial-metadata (meta 0 0 "" 0)
                             #:draw dh
                             #:tick th
                             #:key kh
                             #:mouse mh
+                            #:check-with cw?
+                            #:stop-when should-stop?
                             #:magnification 2
                             #:delay 0.2)
     #;(save-image (scale 0.5 (meta-draw-h (meta 153.5 67.0 "move" 17)
-                                 (scale 2 (dh (m 150 90 35 120)))))
-                    "example.png")
+                                          (scale 2 (dh (m 150 90 35 120)))))
+                  "example.png")
     )
   (run)
   )
@@ -166,19 +243,27 @@
 
 (define-syntax (presentation-big-bang stx)
   (syntax-parse stx
-    #:datum-literals (to-draw on-draw on-mouse on-tick on-key)
+    #:datum-literals (to-draw on-draw on-mouse on-tick on-key on-receive
+                              check-with stop-when)
     [(_ initial-model:expr
         (~alt ((~or* to-draw on-draw) dh)
               (on-mouse mh)
               (on-tick th (~optional delay))
               (on-key kh)
+              (on-receive rh)
+              (check-with ckf)
+              (stop-when stop-expr last-scene-expr)              
               misc)
         ...)
      #'(presentation-big-bang* initial-model
                                (~? (~@ #:draw dh)) ...
                                (~? (~@ #:mouse mh)) ...
                                (~? (~@ #:key kh)) ...
+                               (~? (~@ #:receive rh)) ...                               
                                (~? (~@ #:tick th)) ...
-                               (~? (~@ #:delay delay)) ...             
+                               (~? (~@ #:delay delay)) ...
+                               (~? (~@ #:check-with ckf)) ...
+                               (~? (~@ #:stop-when stop-expr)) ...
+                               (~? (~@ #:last-scene last-scene-expr)) ...
                                (~? misc) ...)]))
 
