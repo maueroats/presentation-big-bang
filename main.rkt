@@ -244,7 +244,7 @@ Thinking about a better way to do this...
 (define-syntax (presentation-big-bang stx)
   (syntax-parse stx
     #:datum-literals (to-draw on-draw on-mouse on-tick on-key on-receive
-                              check-with stop-when)
+                              check-with stop-when name register)
     [(_ initial-model:expr
         (~alt ((~or* to-draw on-draw) dh)
               (on-mouse mh)
@@ -252,7 +252,9 @@ Thinking about a better way to do this...
               (on-key kh)
               (on-receive rh)
               (check-with ckf)
-              (stop-when stop-expr last-scene-expr)              
+              (stop-when stop-expr last-scene-expr)
+              (name the-name)
+              (register the-host)
               misc)
         ...)
      #'(presentation-big-bang* initial-model
@@ -265,5 +267,7 @@ Thinking about a better way to do this...
                                (~? (~@ #:check-with ckf)) ...
                                (~? (~@ #:stop-when stop-expr)) ...
                                (~? (~@ #:last-scene last-scene-expr)) ...
+                               (~? (~@ #:name the-name)) ...
+                               (~? (~@ #:register the-host)) ...                               
                                (~? misc) ...)]))
 
