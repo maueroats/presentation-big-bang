@@ -11,6 +11,15 @@ Probably some metaprogramming would be smart instead of writing all the rest by 
 (require racket/format)
 (require syntax/parse (for-syntax syntax/parse))
 
+#|
+;; to gain access to the pieces of a package. used in update-full.
+;; struct->vector is supposed to be "less brittle"
+(require (only-in rackunit require/expose))
+(require/expose 2htdp/private/world
+                (package-world
+                 package-message))
+|#
+
 (provide presentation-big-bang
 
          ;; optional exports
@@ -46,7 +55,26 @@ Probably some metaprogramming would be smart instead of writing all the rest by 
   #false)
 
 (struct meta (x y event ticks) #:transparent)
+(struct full (model meta) #:transparent)
+
 (define INITIAL-METADATA (meta 0 0 "" 0))
+
+(define (update-full orig new-thing [new-meta 'keep-old])
+  ;; new-thing could be a model or a package containing (model, message)
+  (cond [(package? new-thing)
+         (define v (struct->vector new-thing))
+         (define new-world (vector-ref v 1))
+         (define new-message (vector-ref v 2))
+         (make-package (update-full orig new-world new-meta)
+                       new-message)]
+        [else 
+         (full new-thing
+               (if (eq? new-meta 'keep-old)
+                   (full-meta orig)
+                   new-meta))]))
+
+(define (unwrap-fm x)
+  (full-model x))
 
 (define (key->visible k)
   (match k
@@ -81,8 +109,10 @@ Thinking about a better way to do this...
 
 (define actual-mouse-h (wrap-base mouse-h (model x y event)))
 ->
-(define (actual-mouse-h model x y event)
-  ())
+
+(define (actual-mouse-h fm x y event)
+  (update-model fm
+                (mouse-h (full-model fm) x y event)))
 |#
 
 (define (presentation-big-bang* initial-model
@@ -103,7 +133,6 @@ Thinking about a better way to do this...
                                 #:last-scene [last-scene-f #f]
                                 #:register [register-host #f]
                                 #:name [the-name "Presention World"])
-  (struct full (model meta) #:transparent)
   (define INITIAL (full initial-model initial-metadata))
 
   (define (actual-draw-h fm)
@@ -114,31 +143,34 @@ Thinking about a better way to do this...
     (if (and reset-tick
              (= reset-tick (meta-ticks (full-meta fm))))
         INITIAL
-        (full (tick-h (full-model fm))
-              (update-md-tick (full-meta fm)))))
+        (update-full fm
+                     (tick-h (full-model fm))
+                     (update-md-tick (full-meta fm)))))
 
   (define (actual-key-h fm key)
     (if (and reset-key (key=? key reset-key))
         INITIAL
-        (full (key-h (full-model fm)
-                     key)
-              (update-md-key (full-meta fm)
-                             key))))
+        (update-full fm
+                     (key-h (full-model fm)
+                            key)
+                     (update-md-key (full-meta fm)
+                                    key))))
 
   (define (actual-mouse-h fm x y event)
     (define x* (exact->inexact (/ x mag)))
     (define y* (exact->inexact (/ y mag)))
-    (full (mouse-h (full-model fm)
-                   x* y*
-                   event)
-          (update-md-mouse (full-meta fm)
-                           x* y*
-                           event)))
+    (update-full fm
+                 (mouse-h (full-model fm)
+                          x* y*
+                          event)
+                 (update-md-mouse (full-meta fm)
+                                  x* y*
+                                  event)))
 
   (define (actual-receive-h fm msg)
-    (full (receive-h (full-model fm)
-                     msg)
-          (full-meta fm)))
+    (update-full fm
+                 (receive-h (full-model fm)
+                            msg)))
 
   (define (actual-check-with-f fm)
     (and (full? fm)
