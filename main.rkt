@@ -8,7 +8,7 @@ Probably some metaprogramming would be smart instead of writing all the rest by 
 
 (require 2htdp/image)
 (require 2htdp/universe)
-(require racket/format)
+(require racket/format (for-syntax racket/format))
 (require syntax/parse (for-syntax syntax/parse))
 
 #|
@@ -29,7 +29,8 @@ Probably some metaprogramming would be smart instead of writing all the rest by 
 
 (define TICK-DOT-LIMIT 10)
 (define RESET-TICK 300) ;; LOW!
-(define RESET-KEY "`")
+(define RESET-KEY "escape")
+(define DELAY-DEFAULT 0.2)
 
 (define (mytext t)
   (text t 32 "black"))
@@ -138,7 +139,6 @@ Thinking about a better way to do this...
   (define (actual-draw-h fm)
     (meta-draw-h (full-meta fm)
                  (scale mag (draw-h (full-model fm)))))
-
   (define (actual-tick-h fm)
     (if (and reset-tick
              (= reset-tick (meta-ticks (full-meta fm))))
@@ -179,11 +179,11 @@ Thinking about a better way to do this...
   (define (actual-stop-when-f fm)
     (stop-when-f (full-model fm)))
 
-  (define (actual-last-scene-f fm)
+  (define (actual-last-scene-f mag fm)
     (if last-scene-f
         (meta-draw-h (full-meta fm)
                      (last-scene-f (full-model fm)))
-        (actual-draw-h fm)))
+        (actual-draw-h mag fm)))
 
   (if register-host
       (big-bang (full initial-model initial-metadata)
@@ -263,7 +263,7 @@ Thinking about a better way to do this...
                                           (scale 2 (dh (m 150 90 35 120)))))
                   "example.png")
     )
-  (run)
+;  (run)
   )
 
 
@@ -273,7 +273,7 @@ Thinking about a better way to do this...
 
 
 
-(define-syntax (presentation-big-bang stx)
+(define-syntax (presentation-big-bang-old stx)
   (syntax-parse stx
     #:datum-literals (to-draw on-draw on-mouse on-tick on-key on-receive
                               check-with stop-when name register)
@@ -293,13 +293,120 @@ Thinking about a better way to do this...
                                (~? (~@ #:draw dh)) ...
                                (~? (~@ #:mouse mh)) ...
                                (~? (~@ #:key kh)) ...
-                               (~? (~@ #:receive rh)) ...                               
+                               (~? (~@ #:receive rh)) ...
                                (~? (~@ #:tick th)) ...
                                (~? (~@ #:delay delay)) ...
                                (~? (~@ #:check-with ckf)) ...
                                (~? (~@ #:stop-when stop-expr)) ...
                                (~? (~@ #:last-scene last-scene-expr)) ...
                                (~? (~@ #:name the-name)) ...
-                               (~? (~@ #:register the-host)) ...                               
+                               (~? (~@ #:register the-host)) ...
                                (~? misc) ...)]))
 
+
+;; ========================================================================
+
+(define ((actual-draw-h mag draw-h) fm)
+  (meta-draw-h (full-meta fm)
+               (scale mag (draw-h (full-model fm)))))
+
+(define ((actual-tick-h reset-tick INITIAL tick-h) fm)
+    (if (and reset-tick
+             (= reset-tick (meta-ticks (full-meta fm))))
+        INITIAL
+        (update-full fm
+                     (tick-h (full-model fm))
+                     (update-md-tick (full-meta fm)))))
+
+
+(define ((actual-key-h reset-key INITIAL key-h) fm key)
+    (if (and reset-key (key=? key reset-key))
+        INITIAL
+        (update-full fm
+                     (key-h (full-model fm)
+                            key)
+                     (update-md-key (full-meta fm)
+                                    key))))
+
+(define ((actual-mouse-h mag mouse-h) fm x y event)
+  (define x* (exact->inexact (/ x mag)))
+  (define y* (exact->inexact (/ y mag)))
+  (update-full fm
+               (mouse-h (full-model fm)
+                        x* y*
+                        event)
+               (update-md-mouse (full-meta fm)
+                                x* y*
+                                event)))
+
+(define ((actual-receive-h receive-h) fm msg)
+  (update-full fm
+               (receive-h (full-model fm)
+                          msg)))
+
+(define ((actual-check-with-f check-with-f) fm)
+  (and (full? fm)
+       (meta? (full-meta fm))
+       (check-with-f (full-model fm))))
+
+(define ((actual-stop-when-f stop-when-f) fm)
+  (stop-when-f (full-model fm)))
+
+(define ((actual-last-scene-f mag last-scene-f) fm)
+  (if last-scene-f
+      (meta-draw-h (full-meta fm)
+                   (last-scene-f (full-model fm)))
+      (actual-draw-h mag fm)))
+
+;; the following parameters need defaults
+;; mag
+;; reset-tick
+;; delay
+;; reset-tick
+;; reset-key
+
+(define-syntax (presentation-big-bang stx)
+  (syntax-parse stx
+    #:literals (to-draw on-draw on-mouse on-tick on-key on-receive
+                        check-with stop-when)
+    [(_ initial-model:expr
+        (~alt (~once ((~or* to-draw on-draw) dh))
+              (~optional (on-mouse mh))
+              (~optional (on-tick th (~optional delay)))
+              (~optional (on-key kh))
+              (~optional (on-receive rh))
+              (~optional (check-with ckf))
+              (~optional (stop-when stop-when-f (~optional last-scene-expr)))
+              misc) ...)
+     #'(begin
+                  (define mag 2)
+                  (define reset-tick RESET-TICK)
+                  (define pdh (actual-draw-h mag dh))
+                  (big-bang (full initial-model INITIAL-METADATA)
+                            (~? (on-draw pdh))
+                            (~? (on-tick (actual-tick-h reset-tick initial-model th)
+                                         (~? delay DELAY-DEFAULT)))
+                            (~? (on-mouse (actual-mouse-h mag mh)))
+                            (~? (on-key (actual-key-h RESET-KEY initial-model kh)))
+                            (~? (on-receive (actual-receive-h rh)))
+                            (~? (check-with (actual-check-with-f ckf)))
+                            (~? (stop-when (actual-stop-when-f stop-when-f)
+                                           (~? (actual-last-scene-f mag
+                                                                    last-scene-expr))))
+                            (~? misc) ...))]))
+
+(module+ main
+  (presentation-big-bang (m 150 90 350 100)
+                         (to-draw dh)
+                         (name "Demo Presentation")
+                         (on-tick th 0.2)
+                         (on-key kh)
+                         (on-mouse mh)
+                         (check-with cw?)
+                         (stop-when should-stop?)
+                         ))
+
+
+
+;; WIP
+;; 1. how do you create a function, store it in a local variable, then use the variable within the big bang
