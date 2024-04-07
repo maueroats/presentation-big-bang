@@ -35,7 +35,7 @@ The new @racket{meta} block in the @racket{presentation-big-bang} sets
 parameters used in the animation.
 
 The @racket{magnification} parameter controls the scale factor applied
-to the draw handler.
+to the draw handler. The default magnification factor is 2.
 
 The @racket{reset-tick} parameter sets a value at which the entire
 model resets to its original state. By default this is 300.
@@ -57,7 +57,7 @@ in the upper left and right of the screen.
  mouse event), and the number of ticks since the animation started.
 
 @defstruct[meta ([x number?] [y number?] [event string?] [ticks number?])]{
- A structure that holds the metadata for an animation.
+ A structure that holds the metadata for an animation. Not currently exported.
  }
 
 
@@ -81,7 +81,7 @@ Unrecognized options are passed directly to @code{big-bang}.
 
 @defform[#:literals (to-draw on-draw on-tick on-mouse on-key on-release on-pad on-receive check-with stop-when meta magnification reset-tick reset-key)
 (presentation-big-bang INITIAL-MODEL
-  [(to-draw draw-handler [width height])]
+  (to-draw draw-handler [width height])
   (on-tick tick-handler [delay [tick-count]])
   (on-mouse mouse-handler)
   (on-key key-handler)
