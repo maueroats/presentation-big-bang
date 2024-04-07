@@ -62,7 +62,7 @@
          (define new-message (vector-ref v 2))
          (make-package (update-full orig new-world new-meta)
                        new-message)]
-        [else 
+        [else
          (full new-thing
                (if (eq? new-meta 'keep-old)
                    (full-meta orig)
@@ -156,15 +156,17 @@
 
 (define-syntax (presentation-big-bang stx)
   (syntax-parse stx
-    #:literals (to-draw on-draw on-mouse on-tick on-key on-receive
+    #:literals (to-draw on-draw on-mouse on-tick on-key on-release on-receive on-pad
                         check-with stop-when
                         meta)
     #:datum-literals (reset-key reset-tick mag magnification)
     [(_ initial-model:expr
-        (~alt (~once ((~or* to-draw on-draw) dh))
+        (~alt (~once ((~or* to-draw on-draw) dh (~optional (~seq width height))))
               (~optional (on-mouse mh))
-              (~optional (on-tick th (~optional delay)))
+              (~optional (on-tick th (~optional (~seq delay (~optional tick-limit)))))
               (~optional (on-key kh))
+              (~optional (on-release krh))
+              (~optional (on-pad padh))
               (~optional (on-receive rh))
               (~optional (check-with ckf))
               (~optional (stop-when stop-when-f (~optional last-scene-expr)))
@@ -178,11 +180,15 @@
          (define reset-key (~? RESET-KEY-LOCAL RESET-KEY-DEFAULT))
          (define initial-full-model (full initial-model INITIAL-METADATA))
          (big-bang initial-full-model
-                   (~? (on-draw (actual-draw-h mag dh)))
+                   (~? (on-draw (actual-draw-h mag dh)
+                                (~? (~@ width height))))
                    (~? (on-tick (actual-tick-h reset-tick initial-full-model th)
-                                (~? delay DELAY-DEFAULT)))
+                                (~? delay DELAY-DEFAULT)
+                                (~? tick-limit)))
                    (~? (on-mouse (actual-mouse-h mag mh)))
                    (~? (on-key (actual-key-h reset-key initial-full-model kh)))
+                   (~? (on-release (actual-key-h #f #f krh)))
+                   (~? (on-pad (actual-key-h #f #f padh)))
                    (~? (on-receive (actual-receive-h rh)))
                    (~? (check-with (actual-check-with-f ckf)))
                    (~? (stop-when (actual-stop-when-f stop-when-f)
@@ -196,7 +202,7 @@
 
 (module+ main
   (struct m (x y r t) #:transparent)
-  
+
   (define (dh w)
     (place-image (circle (m-r w) "solid" (make-color (+ 100 (m-t w)) 0 0))
                  (m-x w) (m-y w)
@@ -210,8 +216,16 @@
           [(key=? k "e")
            'bad-result] ;; for testing the check-with function
           [(key=? k "q")
-           (struct-copy m model [t -100])] 
+           (struct-copy m model [t -100])]
           [else model]))
+
+  (define (kh-release model k)
+    (cond[(key=? k "w")
+          (struct-copy m model [r (+ 5 (m-r model))])]
+         [(key=? k "s")
+           (struct-copy m model [r (max 0 (+ -5 (m-r model)))])]
+          [else
+           model]))
 
   (define (mh model x y event)
     (struct-copy m model [r (m-r model)]))
@@ -230,10 +244,11 @@
     (= -100 (m-t model)))
 
   (presentation-big-bang (m 150 90 350 100)
-                         (to-draw dh)
+                         (to-draw dh 600 600)
                          (name "Demo Presentation")
                          (on-tick th 0.2)
                          (on-key kh)
+                         (on-release kh-release)
                          (on-mouse mh)
                          (check-with cw?)
                          (stop-when should-stop?)
