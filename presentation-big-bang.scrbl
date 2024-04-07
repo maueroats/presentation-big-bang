@@ -20,9 +20,9 @@ triggering the visual responses.
 (presentation-big-bang 10
                        (to-draw dr)
                        (on-tick add1 1.0)
-                       #:magnification 3
-                       #:reset-tick 30
-                       #:reset-key "r")
+                       (meta (magnification 3)
+                             (reset-tick 30)
+                             (reset-key "r")))
 }
 
 An example frame from a presentation big-bang:
@@ -31,12 +31,18 @@ An example frame from a presentation big-bang:
 
 @section{Customizing the animation}
 
-The @racket{#:reset-tick} parameter sets a value at which the entire
+The new @racket{meta} block in the @racket{presentation-big-bang} sets
+parameters used in the animation.
+
+The @racket{magnification} parameter controls the scale factor applied
+to the draw handler.
+
+The @racket{reset-tick} parameter sets a value at which the entire
 model resets to its original state. By default this is 300.
 
-The @racket{#:reset-key} is a key (string) which resets the model to
-its original state when pressed. By default this key is the back tick
-(@literal{`}).
+The @racket{reset-key} is a key (string) which resets the model to
+its original state when pressed. By default this key is @literal{"escape"}.
+
 
 @section{Metadata}
 
@@ -57,38 +63,34 @@ in the upper left and right of the screen.
 
 @subsection{Customizing the metadata}
 
-The way the metadata is displayed can be controlled by specifying a
-@racket{#:meta-draw} argument.
+Originally there was a @racket{meta-draw} argument. That is no longer
+exposed, but it would be easy to add.
 
 @defproc[(meta-draw-h [md meta?] [img image?])
          image?]{
-         Returns an image with the desired metadata rendered on it. 
+         Returns an image with the desired metadata rendered on it.
          The @racket{img} is the result returned from the plain draw handler.
          }
 Providing the @racket{#:initial-metadata} argument allows a different
 starting value. The values are propagated with @racket{struct-copy} so
 changing the type of structure probably will not work well.
 
-@;{
 @subsection{All recognized options}
 
-Unrecognized options are passed directly to @code{big-bang}. However,
-the underlying model being used is not exported, so it will be hard to
-use other handlers.
+Unrecognized options are passed directly to @code{big-bang}.
 
-
-@defform[#:literals (to-draw on-draw on-tick on-mouse on-key)
+@defform[#:literals (to-draw on-draw on-tick on-mouse on-key on-release on-pad on-receive check-with stop-when meta magnification reset-tick reset-key)]{
 (presentation-big-bang [INITIAL-MODEL any?]
-  [(to-draw draw-handler)]
-  (on-tick tick-handler [delay])
+  [(to-draw draw-handler [width height])]
+  (on-tick tick-handler [delay [tick-count]])
   (on-mouse mouse-handler)
   (on-key key-handler)
-  #:magnification 3
-  #:reset-tick 40
-  #:reset-key "r"
-  #:initial-metadata (meta 0 0 "" 0)
-  #:meta-draw meta-draw-h)
-  #:contracts ([meta-draw-h (meta? image? -> image?)])]
-  {Unfinished}
-  }
-  
+  (on-release key-handler)
+  (on-pad pad-handler)
+  (on-receive receive-handler)
+  (check-with good-struct?)
+  (stop-when should-stop? [last-scene-draw-handler])
+  (meta (magnification 3)
+        (reset-tick 40)
+        (reset-key "r")))
+}
