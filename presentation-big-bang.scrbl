@@ -79,8 +79,8 @@ changing the type of structure probably will not work well.
 
 Unrecognized options are passed directly to @code{big-bang}.
 
-@defform[#:literals (to-draw on-draw on-tick on-mouse on-key on-release on-pad on-receive check-with stop-when meta magnification reset-tick reset-key)]{
-(presentation-big-bang [INITIAL-MODEL any?]
+@defform[#:literals (to-draw on-draw on-tick on-mouse on-key on-release on-pad on-receive check-with stop-when meta magnification reset-tick reset-key)
+(presentation-big-bang INITIAL-MODEL
   [(to-draw draw-handler [width height])]
   (on-tick tick-handler [delay [tick-count]])
   (on-mouse mouse-handler)
@@ -92,5 +92,6 @@ Unrecognized options are passed directly to @code{big-bang}.
   (stop-when should-stop? [last-scene-draw-handler])
   (meta (magnification 3)
         (reset-tick 40)
-        (reset-key "r")))
+        (reset-key "r")))]{
+  Produces a big-bang animation that tracks metadata.
 }
