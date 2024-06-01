@@ -125,8 +125,8 @@
                                     key))))
 
 (define ((actual-mouse-h mag mouse-h) fm x y event)
-  (define x* (exact->inexact (/ x mag)))
-  (define y* (exact->inexact (/ y mag)))
+  (define x* (round (/ x mag)))
+  (define y* (round (/ y mag)))
   (update-full fm
                (mouse-h (full-model fm)
                         x* y*
