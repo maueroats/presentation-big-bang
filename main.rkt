@@ -157,9 +157,8 @@
 (define-syntax (presentation-big-bang stx)
   (syntax-parse stx
     #:literals (to-draw on-draw on-mouse on-tick on-key on-release on-receive on-pad
-                        check-with stop-when
-                        meta)
-    #:datum-literals (reset-key reset-tick mag magnification)
+                        check-with stop-when)
+    #:datum-literals (reset-key reset-tick mag magnification meta)
     [(_ initial-model:expr
         (~alt (~once ((~or* to-draw on-draw) dh (~optional (~seq width height))))
               (~optional (on-mouse mh))
