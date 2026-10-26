@@ -169,9 +169,10 @@
               (~optional (on-receive rh))
               (~optional (check-with ckf))
               (~optional (stop-when stop-when-f (~optional last-scene-expr)))
-              (~optional (meta (~optional (reset-key RESET-KEY-LOCAL))
-                               (~optional (reset-tick RESET-TICK-LOCAL))
-                               (~optional ((~or* mag magnification) the-mag))))
+              (~optional (meta (~alt (~optional (reset-key RESET-KEY-LOCAL))
+                                     (~optional (reset-tick RESET-TICK-LOCAL))
+                                     (~optional ((~or* mag magnification) the-mag)))
+                               ...))
               misc) ...)
      #'(begin
          (define mag (~? the-mag MAGNIFICATION-DEFAULT))
